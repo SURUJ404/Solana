@@ -51,13 +51,13 @@ pub struct Make<'info> {
 }
 
 impl<'info> Make<'info> {
-    fn populate_escrow(&mut self, seed: u64, amount: u64, bump: u8) -> Result<()> {
+    fn populate_escrow(&mut self, seed: u64, receive: u64, bump: u8) -> Result<()> {
         self.escrow.set_inner(Escrow {
             seed,
             maker: self.maker.key(),
             mint_a: self.mint_a.key(),
             mint_b: self.mint_b.key(),
-            receive: amount,
+            receive,
             bump,
         });
         Ok(())
@@ -76,11 +76,17 @@ impl<'info> Make<'info> {
             amount,
             self.mint_a.decimals,
         )?;
+
+        // A fee-on-transfer mint can leave the vault empty even when the
+        // requested deposit amount is non-zero.
+        self.vault.reload()?;
+        require_gt!(self.vault.amount, 0, EscrowError::EmptyVault);
+
         Ok(())
     }
 }
 
-pub fn handler(ctx: Context<Make>, seed: u64, receive: u64, amount: u64) -> Result<()> {
+pub fn make_handler(ctx: Context<Make>, seed: u64, receive: u64, amount: u64) -> Result<()> {
     require_gt!(receive, 0, EscrowError::InvalidAmount);
     require_gt!(amount, 0, EscrowError::InvalidAmount);
 

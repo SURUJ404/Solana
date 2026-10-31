@@ -26,7 +26,9 @@ pub struct Take<'info> {
     )]
     pub escrow: Box<Account<'info, Escrow>>,
 
+    #[account(mint::token_program = token_program)]
     pub mint_a: Box<InterfaceAccount<'info, Mint>>,
+    #[account(mint::token_program = token_program)]
     pub mint_b: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
@@ -115,7 +117,8 @@ impl<'info> Take<'info> {
     }
 }
 
-pub fn handler(ctx: Context<Take>) -> Result<()> {
+pub fn take_handler(ctx: Context<Take>) -> Result<()> {
+    require_gt!(ctx.accounts.vault.amount, 0, EscrowError::EmptyVault);
     ctx.accounts.transfer_to_maker()?;
     ctx.accounts.withdraw_and_close_vault()?;
     Ok(())

@@ -55,13 +55,13 @@ All token movements use `transfer_checked` CPIs, which pass the mint decimals to
 1. Validates that `receive > 0` and `amount > 0`.
 2. Initializes the `Escrow` PDA with `seed`, `maker`, `mint_a`, `mint_b`, `receive`, and `bump`.
 3. Initializes the vault as the associated token account for `mint_a` with the escrow PDA as authority.
-4. Transfers `amount` of token A from the maker's associated token account to the vault.
+4. Transfers `amount` of token A from the maker's associated token account to the vault, then rejects the transaction if the vault is still empty.
 
 The maker's token A account must already exist. The maker pays rent for the escrow and vault accounts.
 
 ### `take`
 
-1. Validates the escrow seeds, bump, and `has_one` constraints for `maker`, `mint_a`, and `mint_b`.
+1. Validates the escrow seeds, bump, and `has_one` constraints for `maker`, `mint_a`, and `mint_b`, and rejects an empty vault.
 2. Transfers `escrow.receive` of token B from the taker's account to the maker's associated token account.
 3. Transfers the vault's entire token A balance to the taker's associated token account using the escrow PDA as signer.
 4. Closes the vault and sends its rent to the maker.
@@ -71,12 +71,12 @@ The taker's token B account must already exist. The taker pays rent if the maker
 
 ### `refund`
 
-1. Validates the escrow seeds, bump, and `has_one` constraints for `maker` and `mint_a`.
+1. Validates the escrow seeds, bump, and `has_one` constraints for `maker` and `mint_a`, and rejects an empty vault.
 2. Transfers the vault's entire token A balance to the maker's associated token account.
 3. Closes the vault and sends its rent to the maker.
 4. Closes the escrow account and sends its rent to the maker.
 
-Only the maker can sign this instruction. The `close = maker` constraint on the escrow account enforces the authority.
+Only the maker can sign this instruction. The `Signer` constraint on `maker` enforces the authority, and `close = maker` sends the escrow account's rent to the maker.
 
 ## Accounts
 
@@ -113,6 +113,13 @@ The program imports `TokenInterface`, `InterfaceAccount<Mint>`, and `InterfaceAc
 
 The caller supplies the token program account, and the associated token account constraints validate that it matches the mint and authority.
 
+Token-2022 support has limits:
+
+- Transfer-fee mints are supported by the token program, but the program does not account for the fee. The taker receives the vault's actual token A balance, and the maker receives the actual token B amount after any fee.
+- Transfer-hook mints that require extra accounts are not supported, because the instructions do not forward hook accounts.
+- Confidential-transfer balances are not supported; `vault.amount` and `transfer_checked` operate on public token amounts.
+- The program rejects a deposit that leaves the vault empty, and it rejects `take`/`refund` when the vault balance is zero.
+
 ## Error Codes
 
 | Code | Message | Trigger |
@@ -121,6 +128,7 @@ The caller supplies the token program account, and the associated token account 
 | `InvalidMaker` | Invalid maker | Escrow `maker` does not match the supplied maker account. |
 | `InvalidMintA` | Invalid mint a | Escrow `mint_a` does not match the supplied mint account. |
 | `InvalidMintB` | Invalid mint b | Escrow `mint_b` does not match the supplied mint account. |
+| `EmptyVault` | Vault is empty | `make` leaves the vault empty, or `take`/`refund` run with a zero vault balance. |
 
 ## Project Structure
 
@@ -160,15 +168,15 @@ The build produces `target/deploy/anchor_escrow.so`, which the LiteSVM test load
 
 ## Test
 
-The repository contains a Rust integration test at `tests/anchor-litesvm-tests.rs`. It covers `make` followed by `take` using LiteSVM and `litesvm-token`.
+The repository contains Rust integration tests at `tests/anchor-litesvm-tests.rs`. They cover `make` followed by `take`, and `make` followed by `refund`, using LiteSVM and `litesvm-token`.
 
 ```bash
 cd escrow
 anchor build
-cargo test --test anchor-litesvm-tests
+cargo test --locked --test anchor-litesvm-tests
 ```
 
-The `test` script in `Anchor.toml` targets `tests/**/*.ts`. The repository does not contain TypeScript tests, so the Rust test target is the executable test suite. There is no automated `refund` test in the current tree.
+`Anchor.toml` runs the same Rust test target, so `anchor test` executes the LiteSVM suite. Keep `Cargo.lock` in version control; it pins the Anchor and Solana test dependencies so the suite resolves the same versions. The lock also holds several Solana 3.0 crates at their initial `3.0.0` releases because later `3.0.x` releases moved to `solana-hash` 4.x, which does not unify with the `solana-hash` 3.x used by Anchor `1.0.0-rc.2` and LiteSVM `0.8.2`. Run `cargo update` carefully and rerun the tests after any dependency change.
 
 ## Security Notes
 
@@ -178,6 +186,7 @@ The `test` script in `Anchor.toml` targets `tests/**/*.ts`. The repository does 
 - `take` transfers exactly `escrow.receive` of token B and the vault's full token A balance. Partial fills are not supported.
 - Closing the escrow and vault returns rent to the maker.
 - The program does not charge a fee and does not validate that `mint_a` and `mint_b` are different mints.
+- Deposits that leave the vault empty, including 100% transfer-fee mints, are rejected. `take` and `refund` also reject an empty vault.
 - Token-2022 extensions such as transfer hooks execute during `transfer_checked` CPIs. The program does not implement a reentrancy guard.
 
 ## References

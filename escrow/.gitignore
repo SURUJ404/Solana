@@ -53,7 +53,6 @@ yarn-error.log*
 Thumbs.db
 
 # Rust
-Cargo.lock
 /target/
 **/*.rs.bk
 *.pdb

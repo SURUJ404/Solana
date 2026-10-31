@@ -52,6 +52,8 @@ pub struct Refund<'info> {
 
 impl<'info> Refund<'info> {
     fn withdraw_and_close_vault(&mut self) -> Result<()> {
+        require_gt!(self.vault.amount, 0, EscrowError::EmptyVault);
+
         let signer_seeds: [&[&[u8]]; 1] = [&[
             b"escrow",
             self.maker.to_account_info().key.as_ref(),
@@ -88,7 +90,7 @@ impl<'info> Refund<'info> {
     }
 }
 
-pub fn handler(ctx: Context<Refund>) -> Result<()> {
+pub fn refund_handler(ctx: Context<Refund>) -> Result<()> {
     ctx.accounts.withdraw_and_close_vault()?;
 
     Ok(())
