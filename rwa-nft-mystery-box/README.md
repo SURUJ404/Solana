@@ -4,6 +4,17 @@ A Solana RWA demonstration built around a Token-2022 NFT collection. The on-chai
 
 The collection contains 10 normal types with 120 editions each and 1 rare type with 6 editions, for a total supply of 1,206 NFTs.
 
+> Part of the [Solana Core Topics](../README.md) reference.
+
+## Core Concepts
+
+- Token-2022 NFT mints with zero decimals
+- Fixed per-type supply counters in a collection PDA
+- PDA mint authority and `mint_to` CPIs
+- Associated token account creation for recipients
+- Client-side weighted selection for the mystery-box experience
+- Codama-generated TypeScript client and Next.js frontend
+
 ## Architecture
 
 | Layer | Technology |

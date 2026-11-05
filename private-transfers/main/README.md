@@ -4,7 +4,18 @@ Privacy-oriented SOL transfers using Noir circuits, Merkle membership proofs, nu
 
 > **Demonstration project.** The code is not audited and is not suitable for production use.
 
-This directory contains the reference implementation. It includes commitment-based deposits, a Merkle root history, nullifier replay protection, and on-chain proof verification through a fixed Sunspot verifier program.
+This directory is the canonical implementation for the private-transfers topic. It includes commitment-based deposits, a Merkle root history, nullifier replay protection, and on-chain proof verification through a fixed Sunspot verifier program.
+
+> Part of the [Solana Core Topics](../../README.md) reference.
+
+## Core Concepts
+
+- Commitment-based deposits that hide deposit details
+- Merkle root history and membership proofs
+- Nullifier replay protection
+- Noir zero-knowledge circuits and Groth16 proofs
+- On-chain proof verification through a Sunspot verifier CPI
+- Off-chain proof generation and a browser client
 
 ## Implementation Status
 
@@ -121,7 +132,7 @@ main/
 │   └── withdrawal/            # Noir circuit and Merkle helpers
 ├── frontend/
 │   └── src/                   # Vite application and generated client
-├── instructions/              # Step-by-step technical documentation
+├── instructions/              # Technical deep-dives
 ├── package.json
 └── README.md
 ```
@@ -251,6 +262,8 @@ This variant does not include a LiteSVM test module; the end-to-end test is the 
 - **Test coverage** - The repository does not include an automated negative-test suite for forged roots or malformed proofs.
 
 ## Documentation
+
+The filenames in `instructions/` retain their original step prefixes for continuity. Each document is a standalone technical note, and the index below is organized by concept rather than by sequence.
 
 | Document | Topic |
 | --- | --- |

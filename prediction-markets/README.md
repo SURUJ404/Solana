@@ -4,6 +4,17 @@ A full-stack binary prediction market implementation on Solana. The repository c
 
 The implementation targets Solana devnet and uses a parimutuel payout model: winners receive their stake plus a proportional share of the losing pool.
 
+> Part of the [Solana Core Topics](../README.md) reference.
+
+## Core Concepts
+
+- Parimutuel pool accounting for YES and NO outcomes
+- PDA-backed market and per-user position state
+- SOL custody in a program-controlled market account
+- Time-gated betting and creator-controlled resolution
+- Proportional payouts with `u128` intermediates
+- Codama-generated TypeScript client and Next.js frontend
+
 ## Architecture
 
 | Layer | Technology |
@@ -155,7 +166,7 @@ prediction-markets/
 ├── codama.json
 ├── package.json
 ├── scripts/                 # Technical documentation
-├── LECTURE_PLAN.md          # Implementation plan
+├── approach.md              # Implementation plan
 └── README.md
 ```
 
@@ -240,7 +251,7 @@ The LiteSVM test module `anchor/programs/prediction_market/src/tests.rs` is pres
 | [scripts/05-security-tradeoffs.md](./scripts/05-security-tradeoffs.md) | Design decisions and limitations |
 | [scripts/06-recap.md](./scripts/06-recap.md) | Architecture summary |
 | [scripts/final.md](./scripts/final.md) | Combined technical reference |
-| [LECTURE_PLAN.md](./LECTURE_PLAN.md) | Implementation plan (legacy filename) |
+| [approach.md](./approach.md) | Implementation plan |
 
 ## References
 

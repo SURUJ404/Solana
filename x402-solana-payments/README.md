@@ -4,6 +4,16 @@ A Next.js application that demonstrates paid access to routes using the [X402 pa
 
 The application includes an AI fortune-teller endpoint backed by OpenAI and two tiered content routes.
 
+> Part of the [Solana Core Topics](../README.md) reference.
+
+## Core Concepts
+
+- HTTP 402 payment negotiation for protected routes
+- `x402-next` middleware for route-level pricing
+- Solana payment verification through a facilitator
+- Session tokens for repeat access after payment
+- Next.js App Router middleware and environment-driven configuration
+
 ## Payment-Protected Routes
 
 | Route | Price | Content |

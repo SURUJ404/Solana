@@ -54,6 +54,8 @@ Tools:
 
 ## Documentation
 
+The filenames retain their original step prefixes for continuity. Each document is a standalone technical note, and the table is organized by concept.
+
 | Document | Topic |
 | --- | --- |
 | [step-0-introduction.md](./step-0-introduction.md) | Introduction and project structure |

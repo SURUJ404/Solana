@@ -2,6 +2,17 @@
 
 A Solana stablecoin program built with [Anchor](https://www.anchor-lang.com/) that demonstrates how to issue and manage a Token-2022 (Token Extensions) token with controlled minting, allowance management, and emergency pause functionality.
 
+> Part of the [Solana Core Topics](../README.md) reference.
+
+## Core Concepts
+
+- Token-2022 mint controlled by a program PDA
+- Per-minter allowances and cumulative mint tracking
+- Admin roles and emergency pause controls
+- Mint and burn CPIs against Token-2022
+- Token-2022 associated token account derivation
+- Rust LiteSVM tests
+
 ## Overview
 
 The program creates a Token-2022 mint whose authority is a PDA owned by the program itself, so no single private key controls issuance. An admin account manages a set of authorized minters, each with an individual allowance that caps how many tokens they can mint in total. This pattern mirrors how real-world stablecoins (e.g. USDC) segregate the admin role from individual mint operators.

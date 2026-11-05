@@ -4,6 +4,17 @@ A token escrow program built with [Anchor](https://www.anchor-lang.com/) 1.0.0-r
 
 The program uses the SPL Token interface rather than concrete SPL Token types, so the same instructions work with both legacy SPL Token mints and Token-2022 mints.
 
+> Part of the [Solana Core Topics](../README.md) reference.
+
+## Core Concepts
+
+- PDA-owned token vaults
+- SPL Token interface constraints for legacy and Token-2022 mints
+- `transfer_checked` and `close_account` CPIs
+- PDA signing with stored bumps
+- Rent recovery through account closure
+- LiteSVM integration tests
+
 ## Overview
 
 The escrow has two roles:

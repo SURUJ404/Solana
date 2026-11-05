@@ -1,6 +1,16 @@
 # Voting Program
 
-A on-chain polling program built with [Anchor](https://www.anchor-lang.com/) on Solana. Demonstrates how to use PDAs to store structured state, pass typed arguments through instructions, and enforce time-gated access rules.
+An on-chain polling program built with [Anchor](https://www.anchor-lang.com/) on Solana. Demonstrates how to use PDAs to store structured state, pass typed arguments through instructions, and enforce time-gated access rules.
+
+> Part of the [Solana Core Topics](../README.md) reference.
+
+## Core Concepts
+
+- PDA-backed poll and candidate accounts
+- Typed instruction arguments and account constraints
+- Clock-based voting windows
+- Per-candidate vote accounting
+- Local-validator integration tests
 
 ## Overview
 

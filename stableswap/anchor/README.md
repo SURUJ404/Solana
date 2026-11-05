@@ -2,6 +2,17 @@
 
 A two-token liquidity pool optimized for stablecoin pairs, built with [Anchor](https://www.anchor-lang.com/) on Solana. It uses a Curve-style hybrid invariant with Newton's method, adaptive fees, and Pyth-based depeg protection so the pool behaves like a stable swap rather than a constant-product AMM.
 
+> Part of the [Solana Core Topics](../../README.md) reference.
+
+## Core Concepts
+
+- Curve-style StableSwap invariant
+- Newton–Raphson iteration for the invariant `D`
+- LP token accounting and minimum-liquidity protection
+- Imbalance-based dynamic fees
+- Pyth oracle staleness and depeg guards
+- Rust LiteSVM tests with local mints and oracle accounts
+
 ## How It Works
 
 Standard AMMs (Uniswap-style `x·y = k`) have significant price impact even for modest trades. For assets that should trade near 1:1, the StableSwap invariant:
