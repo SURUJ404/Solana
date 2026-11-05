@@ -233,6 +233,7 @@ pub fn initialize_pool_handler(
             oracle_b: ctx.accounts.oracle_price_feed_b.key(),
             max_depeg_bps: depeg_threshold_bps,
             emergency_fee_bps: max_dynamic_fee_bps,
+            max_price_age_sec,
             enabled: true,
         },
         is_paused: false,

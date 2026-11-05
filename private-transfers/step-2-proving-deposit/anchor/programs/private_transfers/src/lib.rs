@@ -27,7 +27,8 @@ pub mod private_transfers {
         pool.total_deposits = 0;
         pool.next_leaf_index = 0;
         pool.current_root_index = 0;
-        pool.roots[0] = EMPTY_ROOT;
+        // Unused history slots must not remain zeroed, or [0u8; 32] is accepted as a root.
+        pool.roots = [EMPTY_ROOT; ROOT_HISTORY_SIZE];
 
         msg!("Pool initialized");
         Ok(())
@@ -70,8 +71,14 @@ pub mod private_transfers {
             new_root,
         });
 
-        pool.total_deposits += 1;
-        pool.next_leaf_index += 1;
+        pool.total_deposits = pool
+            .total_deposits
+            .checked_add(1)
+            .ok_or(PrivateTransfersError::Overflow)?;
+        pool.next_leaf_index = pool
+            .next_leaf_index
+            .checked_add(1)
+            .ok_or(PrivateTransfersError::Overflow)?;
 
         msg!("Deposit: {} lamports, commitment: {:?}", amount, commitment);
         Ok(())
@@ -83,6 +90,8 @@ pub mod private_transfers {
         recipient: Pubkey,
         amount: u64,
     ) -> Result<()> {
+        require!(amount > 0, PrivateTransfersError::ZeroAmount);
+
         require!(
             ctx.accounts.pool.is_known_root(&root),
             PrivateTransfersError::InvalidRoot
@@ -225,4 +234,8 @@ pub enum PrivateTransfersError {
     TreeFull,
     #[msg("Invalid root")]
     InvalidRoot,
+    #[msg("Amount must be greater than zero")]
+    ZeroAmount,
+    #[msg("Arithmetic overflow")]
+    Overflow,
 }

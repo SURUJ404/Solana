@@ -29,7 +29,6 @@
 // - `oracle_price_feed_b`: Pyth oracle for token B
 // ============================================================================
 
-use crate::constants::DEFAULT_MAX_PRICE_AGE_SEC;
 use crate::errors::StableSwapError;
 use crate::oracle::load_pair_status;
 use crate::state::Pool;
@@ -78,7 +77,7 @@ pub fn check_depeg_handler(ctx: Context<CheckDepeg>) -> Result<()> {
         &pool.oracle_config.oracle_b,
         &ctx.accounts.oracle_price_feed_a.to_account_info(),
         &ctx.accounts.oracle_price_feed_b.to_account_info(),
-        DEFAULT_MAX_PRICE_AGE_SEC,
+        pool.oracle_config.max_price_age_sec,
         pool.oracle_config.max_depeg_bps,
     )?;
 

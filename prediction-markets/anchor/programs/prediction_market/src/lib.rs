@@ -77,17 +77,12 @@ pub mod prediction_market {
             market.no_pool = market.no_pool.checked_add(amount).ok_or(MarketError::Overflow)?;
         }
 
-        // Update user position - set initial values only if not already set
+        // Update user position - initialize identity fields on first bet.
         let position = &mut ctx.accounts.user_position;
         if position.market == Pubkey::default() {
             position.market = market.key();
             position.user = ctx.accounts.user.key();
-            // Calculate bump for the position PDA
-            let (_, bump) = Pubkey::find_program_address(
-                &[b"position", market.key().as_ref(), ctx.accounts.user.key().as_ref()],
-                ctx.program_id,
-            );
-            position.bump = bump;
+            position.bump = ctx.bumps.user_position;
         }
 
         if bet_yes {
@@ -131,7 +126,7 @@ pub mod prediction_market {
         require!(market.resolved, MarketError::NotResolved);
         require!(!position.claimed, MarketError::AlreadyClaimed);
 
-        let outcome = market.outcome.unwrap();
+        let outcome = market.outcome.ok_or(MarketError::NotResolved)?;
 
         // Calculate winnings
         let (user_winning_bet, total_winning_pool, total_losing_pool) = if outcome {
@@ -140,27 +135,55 @@ pub mod prediction_market {
             (position.no_amount, market.no_pool, market.yes_pool)
         };
 
-        require!(user_winning_bet > 0, MarketError::NoWinnings);
+        // If nobody backed the winning outcome, refund the losing stakes
+        // instead of locking the market's lamports forever.
+        let total_payout = if total_winning_pool == 0 {
+            let refund = if outcome {
+                position.no_amount
+            } else {
+                position.yes_amount
+            };
+            require!(refund > 0, MarketError::NoWinnings);
+            refund
+        } else {
+            require!(user_winning_bet > 0, MarketError::NoWinnings);
 
-        // Calculate payout: original bet + share of losing pool
-        // winnings = (user_bet / winning_pool) * losing_pool
-        let winnings = (user_winning_bet as u128)
-            .checked_mul(total_losing_pool as u128)
-            .ok_or(MarketError::Overflow)?
-            .checked_div(total_winning_pool as u128)
-            .ok_or(MarketError::Overflow)? as u64;
+            // Calculate payout: original bet + share of losing pool
+            // winnings = (user_bet / winning_pool) * losing_pool
+            let winnings = (user_winning_bet as u128)
+                .checked_mul(total_losing_pool as u128)
+                .ok_or(MarketError::Overflow)?
+                .checked_div(total_winning_pool as u128)
+                .ok_or(MarketError::Overflow)? as u64;
 
-        let total_payout = user_winning_bet
-            .checked_add(winnings)
-            .ok_or(MarketError::Overflow)?;
+            user_winning_bet
+                .checked_add(winnings)
+                .ok_or(MarketError::Overflow)?
+        };
 
         // Transfer lamports directly from market PDA to user
         // (Cannot use system_program::transfer because market account is program-owned)
         let market_account_info = ctx.accounts.market.to_account_info();
         let user_account_info = ctx.accounts.user.to_account_info();
 
-        **market_account_info.try_borrow_mut_lamports()? -= total_payout;
-        **user_account_info.try_borrow_mut_lamports()? += total_payout;
+        let remaining_market_lamports = market_account_info
+            .lamports()
+            .checked_sub(total_payout)
+            .ok_or(MarketError::InsufficientLiquidity)?;
+
+        // Never drain the market below its rent-exempt minimum.
+        let rent = Rent::get()?;
+        require!(
+            remaining_market_lamports >= rent.minimum_balance(market_account_info.data_len()),
+            MarketError::InsufficientLiquidity
+        );
+
+        **market_account_info.try_borrow_mut_lamports()? = remaining_market_lamports;
+        let user_lamports = user_account_info
+            .lamports()
+            .checked_add(total_payout)
+            .ok_or(MarketError::Overflow)?;
+        **user_account_info.try_borrow_mut_lamports()? = user_lamports;
 
         // Mark as claimed
         let position = &mut ctx.accounts.user_position;
@@ -193,7 +216,11 @@ pub struct PlaceBet<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"market", market.creator.as_ref(), &market.market_id.to_le_bytes()],
+        bump = market.bump,
+    )]
     pub market: Account<'info, Market>,
 
     #[account(
@@ -215,7 +242,11 @@ pub struct ResolveMarket<'info> {
     )]
     pub creator: Signer<'info>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"market", market.creator.as_ref(), &market.market_id.to_le_bytes()],
+        bump = market.bump,
+    )]
     pub market: Account<'info, Market>,
 }
 

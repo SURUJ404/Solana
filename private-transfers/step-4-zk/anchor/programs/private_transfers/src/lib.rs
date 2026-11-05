@@ -27,7 +27,10 @@ pub mod private_transfers {
         pool.next_leaf_index = 0;
         pool.total_deposits = 0;
         pool.current_root_index = 0;
-        pool.roots[0] = EMPTY_ROOT;
+        // Initialize every history slot to the empty-tree root. Borsh would
+        // otherwise leave the unused slots as [0u8; 32], which `is_known_root`
+        // would then accept as a valid root.
+        pool.roots = [EMPTY_ROOT; ROOT_HISTORY_SIZE];
 
         let nullifiers = &mut ctx.accounts.nullifier_set;
         nullifiers.pool = pool.key();
@@ -77,8 +80,14 @@ pub mod private_transfers {
             new_root,
         });
 
-        pool.next_leaf_index += 1;
-        pool.total_deposits += 1;
+        pool.next_leaf_index = pool
+            .next_leaf_index
+            .checked_add(1)
+            .ok_or(PrivateTransfersError::Overflow)?;
+        pool.total_deposits = pool
+            .total_deposits
+            .checked_add(1)
+            .ok_or(PrivateTransfersError::Overflow)?;
 
         msg!(
             "Deposit successful: {} lamports at leaf index {}",
@@ -98,6 +107,8 @@ pub mod private_transfers {
     ) -> Result<()> {
         let pool = &mut ctx.accounts.pool;
         let nullifier_set = &mut ctx.accounts.nullifier_set;
+
+        require!(amount > 0, PrivateTransfersError::ZeroAmount);
 
         require!(
             !nullifier_set.is_nullifier_used(&nullifier_hash),
@@ -247,7 +258,10 @@ pub struct Withdraw<'info> {
     pub recipient: UncheckedAccount<'info>,
 
     /// CHECK: Validated by constraint
-    #[account(constraint = verifier_program.key() == SUNSPOT_VERIFIER_ID @ PrivateTransfersError::InvalidVerifier)]
+    #[account(
+        constraint = verifier_program.key() == SUNSPOT_VERIFIER_ID @ PrivateTransfersError::InvalidVerifier,
+        constraint = verifier_program.to_account_info().executable @ PrivateTransfersError::InvalidVerifier,
+    )]
     pub verifier_program: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
@@ -273,7 +287,8 @@ impl Pool {
 #[derive(InitSpace)]
 pub struct NullifierSet {
     pub pool: Pubkey,
-    #[max_len(256)]
+    /// One nullifier per possible leaf; a withdrawal can never outnumber deposits.
+    #[max_len(1024)]
     pub nullifiers: Vec<[u8; 32]>,
 }
 
@@ -284,7 +299,7 @@ impl NullifierSet {
 
     pub fn mark_nullifier_used(&mut self, nullifier_hash: [u8; 32]) -> Result<()> {
         require!(
-            self.nullifiers.len() < 256,
+            self.nullifiers.len() < MAX_LEAVES as usize,
             PrivateTransfersError::NullifierSetFull
         );
         self.nullifiers.push(nullifier_hash);
@@ -325,4 +340,8 @@ pub enum PrivateTransfersError {
     InvalidVerifier,
     #[msg("Insufficient vault balance for withdrawal")]
     InsufficientVaultBalance,
+    #[msg("Amount must be greater than zero")]
+    ZeroAmount,
+    #[msg("Arithmetic overflow")]
+    Overflow,
 }

@@ -51,7 +51,10 @@ pub mod private_transfers {
             timestamp: Clock::get()?.unix_timestamp,
         });
 
-        pool.total_deposits += 1;
+        pool.total_deposits = pool
+            .total_deposits
+            .checked_add(1)
+            .ok_or(PrivateTransfersError::Overflow)?;
         // Step 2: Increment next_leaf_index
 
         msg!("Deposit: {} lamports, commitment: {:?}", amount, commitment);
@@ -66,6 +69,8 @@ pub mod private_transfers {
         recipient: Pubkey,
         amount: u64,
     ) -> Result<()> {
+        require!(amount > 0, PrivateTransfersError::ZeroAmount);
+
         // Step 3: Check nullifier not used
         // Step 2: Validate root is known
 
@@ -199,6 +204,10 @@ pub enum PrivateTransfersError {
     RecipientMismatch,
     #[msg("Insufficient vault balance")]
     InsufficientVaultBalance,
+    #[msg("Amount must be greater than zero")]
+    ZeroAmount,
+    #[msg("Arithmetic overflow")]
+    Overflow,
     // Step 2: Add TreeFull, InvalidRoot
     // Step 3: Add NullifierUsed, NullifierSetFull
     // Step 5: Add InvalidVerifier

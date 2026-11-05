@@ -19,13 +19,13 @@
 // - First deposit: special handling to prevent LP inflation attacks
 // ============================================================================
 
-use crate::constants::DEFAULT_MAX_PRICE_AGE_SEC;
 use crate::constants::MINIMUM_LIQUIDITY;
 use crate::errors::StableSwapError;
 use crate::math::{calculate_lp_mint_amount, calculate_withdraw_amounts};
 use crate::oracle::load_pair_status;
 use crate::state::Pool;
 use anchor_lang::prelude::*;
+use anchor_spl::associated_token::get_associated_token_address;
 use anchor_spl::token::{self, Burn, Mint, MintTo, Token, TokenAccount, Transfer};
 
 /// Accounts required to add liquidity to a StableSwap pool.
@@ -170,6 +170,42 @@ pub struct RemoveLiquidity<'info> {
     pub token_program: Program<'info, Token>,
 }
 
+/// Validate that the supplied mints and vaults belong to this pool.
+///
+/// The vaults are owned by the pool PDA, but anyone can create a token account
+/// with that owner. Requiring the stored mints and canonical pool ATAs prevents
+/// LP shares from being minted against attacker-controlled reserves.
+fn validate_pool_accounts(
+    pool_key: &Pubkey,
+    pool: &Pool,
+    token_mint_a: &Pubkey,
+    token_mint_b: &Pubkey,
+    vault_a: &Pubkey,
+    vault_b: &Pubkey,
+) -> Result<()> {
+    require_keys_eq!(
+        *token_mint_a,
+        pool.token_mints[0],
+        StableSwapError::InvalidMint
+    );
+    require_keys_eq!(
+        *token_mint_b,
+        pool.token_mints[1],
+        StableSwapError::InvalidMint
+    );
+    require_keys_eq!(
+        *vault_a,
+        get_associated_token_address(pool_key, &pool.token_mints[0]),
+        StableSwapError::InvalidVault
+    );
+    require_keys_eq!(
+        *vault_b,
+        get_associated_token_address(pool_key, &pool.token_mints[1]),
+        StableSwapError::InvalidVault
+    );
+    Ok(())
+}
+
 /// Deposit token A and token B into the pool to receive LP tokens.
 ///
 /// # Arguments
@@ -186,12 +222,24 @@ pub fn add_liquidity_handler(
 
     let pool = &ctx.accounts.pool;
     require!(!pool.is_paused, StableSwapError::PoolPaused);
+    validate_pool_accounts(
+        &pool.key(),
+        pool,
+        &ctx.accounts.token_mint_a.key(),
+        &ctx.accounts.token_mint_b.key(),
+        &ctx.accounts.vault_a.key(),
+        &ctx.accounts.vault_b.key(),
+    )?;
+    require!(
+        ctx.accounts.lp_mint.mint_authority.contains(&pool.key()),
+        StableSwapError::InvalidMint
+    );
     let oracle_status = load_pair_status(
         &pool.oracle_config.oracle_a,
         &pool.oracle_config.oracle_b,
         &ctx.accounts.oracle_price_feed_a.to_account_info(),
         &ctx.accounts.oracle_price_feed_b.to_account_info(),
-        DEFAULT_MAX_PRICE_AGE_SEC,
+        pool.oracle_config.max_price_age_sec,
         pool.oracle_config.max_depeg_bps,
     )?;
     require!(
@@ -295,6 +343,14 @@ pub fn remove_liquidity_handler(
     require!(lp_amount > 0, StableSwapError::ZeroAmount);
 
     let pool = &ctx.accounts.pool;
+    validate_pool_accounts(
+        &pool.key(),
+        pool,
+        &ctx.accounts.token_mint_a.key(),
+        &ctx.accounts.token_mint_b.key(),
+        &ctx.accounts.vault_a.key(),
+        &ctx.accounts.vault_b.key(),
+    )?;
     let reserve_a = ctx.accounts.vault_a.amount as u128;
     let reserve_b = ctx.accounts.vault_b.amount as u128;
     let actual_supply = ctx.accounts.lp_mint.supply;

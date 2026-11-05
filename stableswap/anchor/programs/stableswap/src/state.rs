@@ -14,13 +14,15 @@ pub struct OracleConfig {
     pub max_depeg_bps: u16,
     /// Emergency fee ceiling used when oracle protection is enabled.
     pub emergency_fee_bps: u16,
+    /// Maximum accepted oracle price age before quotes are considered stale.
+    pub max_price_age_sec: u64,
     /// Whether oracle-based depeg protection is enabled for this pool.
     pub enabled: bool,
 }
 
 impl OracleConfig {
     /// Serialized size of the oracle config inside the pool account.
-    pub const LEN: usize = 32 + 32 + 2 + 2 + 1;
+    pub const LEN: usize = 32 + 32 + 2 + 2 + 8 + 1;
 }
 
 /// A two-token StableSwap liquidity pool.

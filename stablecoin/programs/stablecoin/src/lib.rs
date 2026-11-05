@@ -57,6 +57,8 @@ pub mod stablecoin {
     /// Only authorized minters can call this instruction
     /// The minter must have sufficient allowance remaining
     pub fn mint_tokens(ctx: Context<MintTokens>, amount: u64) -> Result<()> {
+        require!(amount > 0, StablecoinError::ZeroAmount);
+
         let config = &ctx.accounts.config;
 
         // Check not paused
@@ -97,6 +99,8 @@ pub mod stablecoin {
     /// Anyone can burn their own tokens
     /// In a real stablecoin, this would be called when users redeem for fiat
     pub fn burn_tokens(ctx: Context<BurnTokens>, amount: u64) -> Result<()> {
+        require!(amount > 0, StablecoinError::ZeroAmount);
+
         burn(
             CpiContext::new(
                 anchor_spl::token_2022::ID,
@@ -283,7 +287,8 @@ pub struct MintTokens<'info> {
         mut,
         seeds = [b"minter", minter.key().as_ref()],
         bump = minter_config.bump,
-        constraint = minter_config.is_initialized @ StablecoinError::NotMinter
+        constraint = minter_config.is_initialized @ StablecoinError::NotMinter,
+        constraint = minter_config.minter == minter.key() @ StablecoinError::NotMinter,
     )]
     pub minter_config: Account<'info, MinterConfig>,
 
@@ -291,7 +296,9 @@ pub struct MintTokens<'info> {
     #[account(
         mut,
         seeds = [b"mint"],
-        bump = config.mint_bump
+        bump = config.mint_bump,
+        constraint = mint.key() == config.mint @ StablecoinError::InvalidMint,
+        constraint = mint.mint_authority.contains(&config.key()) @ StablecoinError::Unauthorized,
     )]
     pub mint: InterfaceAccount<'info, Mint>,
 
@@ -329,7 +336,8 @@ pub struct BurnTokens<'info> {
     #[account(
         mut,
         seeds = [b"mint"],
-        bump = config.mint_bump
+        bump = config.mint_bump,
+        constraint = mint.key() == config.mint @ StablecoinError::InvalidMint,
     )]
     pub mint: InterfaceAccount<'info, Mint>,
 
@@ -391,6 +399,10 @@ pub enum StablecoinError {
     ExceedsAllowance,
     #[msg("Account is not an authorized minter")]
     NotMinter,
+    #[msg("Amount must be greater than zero")]
+    ZeroAmount,
+    #[msg("Mint account does not match the configured stablecoin mint")]
+    InvalidMint,
     #[msg("Arithmetic overflow")]
     Overflow,
 }

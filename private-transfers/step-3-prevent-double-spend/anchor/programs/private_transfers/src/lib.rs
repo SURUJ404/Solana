@@ -27,7 +27,8 @@ pub mod private_transfers {
         pool.total_deposits = 0;
         pool.next_leaf_index = 0;
         pool.current_root_index = 0;
-        pool.roots[0] = EMPTY_ROOT;
+        // Unused history slots must not remain zeroed, or [0u8; 32] is accepted as a root.
+        pool.roots = [EMPTY_ROOT; ROOT_HISTORY_SIZE];
 
         let nullifier_set = &mut ctx.accounts.nullifier_set;
         nullifier_set.pool = pool.key();
@@ -73,8 +74,14 @@ pub mod private_transfers {
             new_root,
         });
 
-        pool.total_deposits += 1;
-        pool.next_leaf_index += 1;
+        pool.total_deposits = pool
+            .total_deposits
+            .checked_add(1)
+            .ok_or(PrivateTransfersError::Overflow)?;
+        pool.next_leaf_index = pool
+            .next_leaf_index
+            .checked_add(1)
+            .ok_or(PrivateTransfersError::Overflow)?;
 
         msg!("Deposit: {} lamports, commitment: {:?}", amount, commitment);
         Ok(())
@@ -87,6 +94,8 @@ pub mod private_transfers {
         recipient: Pubkey,
         amount: u64,
     ) -> Result<()> {
+        require!(amount > 0, PrivateTransfersError::ZeroAmount);
+
         let nullifier_set = &mut ctx.accounts.nullifier_set;
         require!(
             !nullifier_set.is_nullifier_used(&nullifier_hash),
@@ -226,7 +235,8 @@ impl Pool {
 #[derive(InitSpace)]
 pub struct NullifierSet {
     pub pool: Pubkey,
-    #[max_len(256)]
+    /// One nullifier per possible leaf; a withdrawal can never outnumber deposits.
+    #[max_len(1024)]
     pub nullifiers: Vec<[u8; 32]>,
 }
 
@@ -236,7 +246,7 @@ impl NullifierSet {
     }
     pub fn mark_nullifier_used(&mut self, nullifier_hash: [u8; 32]) -> Result<()> {
         require!(
-            self.nullifiers.len() < 256,
+            self.nullifiers.len() < MAX_LEAVES as usize,
             PrivateTransfersError::NullifierSetFull
         );
         self.nullifiers.push(nullifier_hash);
@@ -275,4 +285,8 @@ pub enum PrivateTransfersError {
     NullifierSetFull,
     #[msg("Nullifier already used")]
     NullifierUsed,
+    #[msg("Amount must be greater than zero")]
+    ZeroAmount,
+    #[msg("Arithmetic overflow")]
+    Overflow,
 }

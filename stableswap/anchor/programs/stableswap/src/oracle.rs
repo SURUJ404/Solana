@@ -251,8 +251,16 @@ fn select_recent_price(
         }
     };
 
-    let age = aggregate_price.publish_time.abs_diff(current_time);
-    require!(age <= max_price_age_sec, StableSwapError::StaleOraclePrice);
+    // Future-dated prices are invalid: `abs_diff` would otherwise accept a
+    // timestamp arbitrarily far ahead of the cluster clock as "fresh".
+    let age = current_time
+        .checked_sub(aggregate_price.publish_time)
+        .ok_or(StableSwapError::StaleOraclePrice)?;
+    require!(age >= 0, StableSwapError::StaleOraclePrice);
+    require!(
+        age as u64 <= max_price_age_sec,
+        StableSwapError::StaleOraclePrice
+    );
     require!(
         aggregate_price.price > 0,
         StableSwapError::InvalidOraclePrice

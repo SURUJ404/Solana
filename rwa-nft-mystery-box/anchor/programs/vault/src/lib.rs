@@ -1,8 +1,9 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::bpf_loader_upgradeable::{get_program_data_address, ProgramData};
 use anchor_spl::{
     associated_token::AssociatedToken,
     token_2022::Token2022,
-    token_interface::TokenAccount,
+    token_interface::{Mint, TokenAccount},
 };
 
 #[cfg(test)]
@@ -84,7 +85,9 @@ pub mod vault {
         let index = (labubu_id - 1) as usize;
 
         require!(collection.remaining_supply[index] > 0, LabubuError::SoldOut);
-        collection.remaining_supply[index] -= 1;
+        collection.remaining_supply[index] = collection.remaining_supply[index]
+            .checked_sub(1)
+            .ok_or(LabubuError::SoldOut)?;
 
         // PDA signing: collection PDA acts as mint authority
         let seeds = &[b"collection".as_ref(), &[ctx.bumps.collection]];
@@ -101,7 +104,10 @@ pub mod vault {
         );
 
         token_interface::mint_to(cpi_context, 1)?;
-        collection.total_minted += 1;
+        collection.total_minted = collection
+            .total_minted
+            .checked_add(1)
+            .ok_or(LabubuError::Overflow)?;
 
         msg!(
             "User {} minted Labubu #{} ({})",
@@ -125,6 +131,15 @@ pub struct LabubuCollection {
 pub struct InitializeCollection<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
+
+    /// The program's upgradeable-loader data account. Initialization is
+    /// restricted to the program upgrade authority so the singleton collection
+    /// PDA cannot be front-run and permanently taken over.
+    #[account(
+        constraint = program_data.key() == get_program_data_address(&crate::ID) @ LabubuError::Unauthorized,
+        constraint = program_data.upgrade_authority_address == Some(authority.key()) @ LabubuError::Unauthorized,
+    )]
+    pub program_data: Account<'info, ProgramData>,
 
     #[account(
         init,
@@ -177,13 +192,15 @@ pub struct MintRandom<'info> {
     )]
     pub collection: Account<'info, LabubuCollection>,
 
-    /// CHECK: Verified by seeds
     #[account(
         mut,
         seeds = [b"labubu_mint", &[labubu_id]],
         bump,
+        constraint = mint.to_account_info().owner == token_program.key() @ LabubuError::InvalidMint,
+        constraint = mint.mint_authority.contains(&collection.key()) @ LabubuError::InvalidMint,
+        constraint = mint.decimals == 0 @ LabubuError::InvalidMint,
     )]
-    pub mint: UncheckedAccount<'info>,
+    pub mint: InterfaceAccount<'info, Mint>,
 
     #[account(
         init_if_needed,
@@ -205,4 +222,10 @@ pub enum LabubuError {
     SoldOut,
     #[msg("Invalid Labubu ID (must be 1-11)")]
     InvalidLabubuId,
+    #[msg("Caller is not the program upgrade authority")]
+    Unauthorized,
+    #[msg("Mint account is not the expected collection mint")]
+    InvalidMint,
+    #[msg("Arithmetic overflow")]
+    Overflow,
 }

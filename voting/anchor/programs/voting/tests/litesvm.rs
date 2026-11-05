@@ -30,7 +30,19 @@ fn get_poll_pda(poll_id: u64) -> Pubkey {
 }
 
 fn get_candidate_pda(poll_id: u64, candidate: &str) -> Pubkey {
-    Pubkey::find_program_address(&[&poll_id.to_le_bytes(), candidate.as_bytes()], &self::voting::ID).0
+    Pubkey::find_program_address(
+        &[b"candidate", &poll_id.to_le_bytes(), candidate.as_bytes()],
+        &self::voting::ID,
+    )
+    .0
+}
+
+fn get_vote_receipt_pda(poll_id: u64, voter: &Pubkey) -> Pubkey {
+    Pubkey::find_program_address(
+        &[b"vote", get_poll_pda(poll_id).as_ref(), voter.as_ref()],
+        &self::voting::ID,
+    )
+    .0
 }
 
 fn initialize_poll(
@@ -103,6 +115,8 @@ fn cast_vote(
             signer: signer.pubkey(),
             poll_account: get_poll_pda(poll_id),
             candidate_account: get_candidate_pda(poll_id, candidate),
+            vote_receipt: get_vote_receipt_pda(poll_id, &signer.pubkey()),
+            system_program: anchor_lang::system_program::ID,
         })
         .args(args::Vote {
             _poll_id: poll_id,

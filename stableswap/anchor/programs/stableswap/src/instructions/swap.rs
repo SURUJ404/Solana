@@ -23,7 +23,6 @@
 // This protects against front-running and sandwich attacks.
 // ============================================================================
 
-use crate::constants::DEFAULT_MAX_PRICE_AGE_SEC;
 use crate::constants::NUM_TOKENS;
 use crate::errors::StableSwapError;
 use crate::math::calculate_swap_output;
@@ -39,7 +38,11 @@ use anchor_spl::{
 #[derive(Accounts)]
 pub struct Swap<'info> {
     /// The pool we're swapping in.
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"pool", pool.lp_mint.as_ref()],
+        bump = pool.bump,
+    )]
     pub pool: Account<'info, Pool>,
 
     /// CHECK: validated against the stored pool config and parsed as a Pyth price account.
@@ -261,9 +264,13 @@ pub fn swap_handler<'info>(
         &pool.oracle_config.oracle_b,
         &ctx.accounts.oracle_price_feed_a.to_account_info(),
         &ctx.accounts.oracle_price_feed_b.to_account_info(),
-        DEFAULT_MAX_PRICE_AGE_SEC,
+        pool.oracle_config.max_price_age_sec,
         pool.oracle_config.max_depeg_bps,
     )?;
+    require!(
+        !pool.oracle_config.enabled || !oracle_status.should_pause,
+        StableSwapError::PoolPaused
+    );
 
     let reserves = ctx
         .accounts

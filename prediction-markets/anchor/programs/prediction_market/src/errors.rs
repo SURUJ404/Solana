@@ -20,4 +20,6 @@ pub enum MarketError {
     NoWinnings,
     #[msg("Arithmetic overflow")]
     Overflow,
+    #[msg("Market account cannot cover the payout while remaining rent-exempt")]
+    InsufficientLiquidity,
 }

@@ -5,7 +5,7 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-anchor-lang = "1.0.0-rc.2"
+anchor-lang = "=1.0.0-rc.2"
 anchor-litesvm = "0.3"
 litesvm = "0.8.2"
 solana-sdk = "~3.0"
